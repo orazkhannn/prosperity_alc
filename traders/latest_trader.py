@@ -67,6 +67,10 @@ class Trader:
         ask_min = min([x for x in sell_orders])
         price_mid = (bid_max + ask_min) / 2
 
+        bid_wall = min([x for x in buy_orders])
+        ask_wall = max([x for x in sell_orders])
+        wall_mid = (bid_wall + ask_wall) / 2
+
         max_allowed_bid_position = self.LIMITS[key] - curr_position
         max_allowed_ask_position = -self.LIMITS[key] - curr_position
 
@@ -76,9 +80,34 @@ class Trader:
         #######################################################
         ################# Market Making #######################
         #######################################################
+        bid_prce = 0
+        ask_price = 0
 
-        bid_price = bid_max + 1
-        ask_price = ask_min - 1
+        if key == "ASH_COATED_OSMIUM":
+            bid_price = bid_max + 1
+            ask_price = ask_min - 1
+        
+        elif key == "INTARIAN_PEPPER_ROOT":
+            bid_price = bid_wall + 1
+            ask_price = ask_wall - 1
+
+            for bp, bv in buy_orders.items():
+                overbidding_price = bp + 1
+                if bv > 1 and overbidding_price < wall_mid:
+                    bid_price = max(bid_price, overbidding_price)
+                    break
+                elif bp < wall_mid:
+                    bid_price = max(bid_price, bp)
+                    break
+
+            for sp, sv in sell_orders.items():
+                underbidding_price = sp - 1
+                if sv > 1 and underbidding_price > wall_mid:
+                    ask_price = min(ask_price, underbidding_price)
+                    break
+                elif sp > wall_mid:
+                    ask_price = min(ask_price, sp)
+                    break
 
         result.append(Order(key, bid_price, max_allowed_bid_position))
         result.append(Order(key, ask_price, max_allowed_ask_position))
@@ -89,20 +118,16 @@ class Trader:
         return self.mm_strategy(state, "ASH_COATED_OSMIUM")
 
     def trade_pepper(self, state: TradingState):
-        return []
+        return self.mm_strategy(state, "INTARIAN_PEPPER_ROOT")
 
     def run(self, state: TradingState):
         self.preprocess_state(state)
         self.logger_print(state)
 
-        # ash_order_depth = state.order_depths["ASH_COATED_OSMIUM"]
-        # pepper_order_depth = state.order_depths["INTARIAN_PEPPER_ROOT"]
-
         ash_coated_osmium_orders = self.trade_ash(state)
         intarian_pepper_root_orders = self.trade_pepper(state)
 
         result = {"ASH_COATED_OSMIUM": ash_coated_osmium_orders, "INTARIAN_PEPPER_ROOT": intarian_pepper_root_orders}
-        # result = {}
         traderData = "SAMPLE"
         conversions = 1
         return result, conversions, traderData
