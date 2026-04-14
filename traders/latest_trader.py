@@ -1,58 +1,108 @@
-from datamodel import Order, OrderDepth, TradingState
-from typing import Dict, List
-
+from datamodel import OrderDepth, UserId, TradingState, Order
+from typing import List
+import string
+import os
 
 class Trader:
-    LIMITS = {
-        "EMERALDS": 80,
-        "TOMATOES": 80,
-    }
-    QUOTE_SIZE = 5
+
+    def __init__(self):
+        self.LIMITS = {
+            "ASH_COATED_OSMIUM": 80,
+            "INTARIAN_PEPPER_ROOT": 80
+        }
+        self.orderbook = {"INTARIAN_PEPPER_ROOT": OrderDepth(), "ASH_COATED_OSMIUM": OrderDepth()}
+
+    def logger_print(self, state: TradingState):
+        print("OrderDepth after ffil vs before:")
+        for key in self.orderbook:
+            print(f"{key}: buy_order: {str(self.orderbook[key].buy_orders)}, sell_orders: {str(self.orderbook[key].sell_orders)}")
+            print(f"{key}: buy_order: {str(state.order_depths[key].buy_orders)}, sell_orders: {str(state.order_depths[key].sell_orders)}")
+        
+        print("-------------------------------------------------------------------------")
+
+        print("own_trades: ")
+        for key in state.own_trades:
+            trades = [{"symbol": trade.symbol, "price": trade.price, "quantity": trade.quantity, "buyer": trade.buyer, "seller": trade.seller, "timestamp": trade.timestamp} for trade in state.own_trades[key]]
+            print(f"{key}: {trades}")
+
+        print("-------------------------------------------------------------------------")
+
+        print("market_trades: ")
+        for key in state.market_trades:
+            trades = [{"symbol": trade.symbol, "price": trade.price, "quantity": trade.quantity, "buyer": trade.buyer, "seller": trade.seller, "timestamp": trade.timestamp} for trade in state.market_trades[key]]
+            print(f"{key}: {trades}")
+
+    def preprocess_state(self, state: TradingState):
+        # Forward Filling logic for missing bid_ask
+        order_depths = state.order_depths
+        for key in order_depths:
+            buy_orders = order_depths[key].buy_orders
+            sell_orders = order_depths[key].sell_orders
+            buy_prices = [x for x in buy_orders]
+            sell_prices = [x for x in sell_orders]
+            order_depth = OrderDepth()
+            if buy_prices and sell_prices:
+                order_depth.buy_orders = buy_orders
+                order_depth.sell_orders = sell_orders
+                self.orderbook[key] = order_depth
+            elif sell_prices:
+                order_depth.buy_orders = self.orderbook[key].buy_orders
+                order_depth.sell_orders = sell_orders
+                self.orderbook[key] = order_depth
+            elif buy_prices:
+                order_depth.buy_orders = buy_orders
+                order_depth.sell_orders = self.orderbook[key].sell_orders
+                self.orderbook[key] = order_depth
+
+    def mm_strategy(self, state: TradingState, key):
+        buy_orders = self.orderbook[key].buy_orders
+        sell_orders = self.orderbook[key].sell_orders
+
+        if not (buy_orders and sell_orders):
+            return []
+
+        curr_position = state.position.get(key, 0)
+
+        bid_max = max([x for x in buy_orders])
+        ask_min = min([x for x in sell_orders])
+        price_mid = (bid_max + ask_min) / 2
+
+        max_allowed_bid_position = self.LIMITS[key] - curr_position
+        max_allowed_ask_position = -self.LIMITS[key] - curr_position
+
+        result = []
+
+
+        #######################################################
+        ################# Market Making #######################
+        #######################################################
+
+        bid_price = bid_max + 1
+        ask_price = ask_min - 1
+
+        result.append(Order(key, bid_price, max_allowed_bid_position))
+        result.append(Order(key, ask_price, max_allowed_ask_position))
+
+        return result
+    
+    def trade_ash(self, state: TradingState):
+        return self.mm_strategy(state, "ASH_COATED_OSMIUM")
+
+    def trade_pepper(self, state: TradingState):
+        return []
 
     def run(self, state: TradingState):
-        orders_by_product: Dict[str, List[Order]] = {}
+        self.preprocess_state(state)
+        self.logger_print(state)
 
-        for product, order_depth in state.order_depths.items():
-            if product not in self.LIMITS:
-                orders_by_product[product] = []
-                continue
-            position = int(state.position.get(product, 0))
-            orders_by_product[product] = self.quote_both_sides(
-                product,
-                order_depth,
-                position,
-            )
+        # ash_order_depth = state.order_depths["ASH_COATED_OSMIUM"]
+        # pepper_order_depth = state.order_depths["INTARIAN_PEPPER_ROOT"]
 
-        return orders_by_product, 0, ""
+        ash_coated_osmium_orders = self.trade_ash(state)
+        intarian_pepper_root_orders = self.trade_pepper(state)
 
-    def quote_both_sides(
-        self,
-        product: str,
-        order_depth: OrderDepth,
-        position: int,
-    ) -> List[Order]:
-        if not order_depth.buy_orders or not order_depth.sell_orders:
-            return []
-
-        best_bid = max(order_depth.buy_orders)
-        best_ask = min(order_depth.sell_orders)
-        if best_bid >= best_ask:
-            return []
-
-        if best_ask - best_bid > 1:
-            bid_price = best_bid + 1
-            ask_price = best_ask - 1
-        else:
-            bid_price = best_bid
-            ask_price = best_ask
-
-        limit = self.LIMITS[product]
-        buy_size = min(self.QUOTE_SIZE, max(0, limit - position))
-        sell_size = min(self.QUOTE_SIZE, max(0, limit + position))
-
-        orders: List[Order] = []
-        if buy_size > 0:
-            orders.append(Order(product, bid_price, buy_size))
-        if sell_size > 0:
-            orders.append(Order(product, ask_price, -sell_size))
-        return orders
+        result = {"ASH_COATED_OSMIUM": ash_coated_osmium_orders, "INTARIAN_PEPPER_ROOT": intarian_pepper_root_orders}
+        # result = {}
+        traderData = "SAMPLE"
+        conversions = 1
+        return result, conversions, traderData
