@@ -100,6 +100,8 @@ class AshTrader(ProductTrader):
         super().__init__(ASH, state, prints, new_trader_data)
         # self.mid_price = ASH_MID_PRICE
         self.mid_price = self.wall_mid
+        self.soft_edge = 10
+        self.hard_edge = 20
 
     def get_orders(self):
 
@@ -125,8 +127,8 @@ class AshTrader(ProductTrader):
             ###########################################################
             ####### 2. MAKING
             ###########################################################
-            bid_price = ASH_MID_PRICE - 4
-            ask_price = ASH_MID_PRICE + 4
+            bid_price = self.mid_price - self.hard_edge if self.expected_position > self.position_limit * 0.5 else self.mid_price - self.soft_edge
+            ask_price = self.mid_price + self.hard_edge if self.expected_position < self.position_limit * -0.5 else self.mid_price + self.soft_edge
 
             if self.bid_wall is not None and self.ask_wall is not None:
                 bid_price = int(self.bid_wall + 1)
