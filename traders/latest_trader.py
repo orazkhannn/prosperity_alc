@@ -86,8 +86,8 @@ class Trader:
         if key == "ASH_COATED_OSMIUM":
             bid_price = bid_max + 1
             ask_price = ask_min - 1
-        
-        elif key == "INTARIAN_PEPPER_ROOT":
+
+        elif key in ("INTARIAN_PEPPER_ROOT"):
             bid_price = bid_wall + 1
             ask_price = ask_wall - 1
 
@@ -113,12 +113,42 @@ class Trader:
         result.append(Order(key, ask_price, max_allowed_ask_position))
 
         return result
-    
+
+    def mr_strategy(self, state: TradingState, key):
+        buy_orders = self.orderbook[key].buy_orders
+        sell_orders = self.orderbook[key].sell_orders
+
+        curr_position = state.position.get(key, 0)
+
+        fp = 1e4
+
+        max_allowed_bid_position = self.LIMITS[key] - curr_position
+        max_allowed_ask_position = -self.LIMITS[key] - curr_position
+
+        result = []
+
+        for sp, sv in sell_orders.items():
+            if sp < fp:
+                result.append(Order(key, sp, min(max_allowed_bid_position, -sv)))
+            elif sp <= fp and curr_position < 0:
+                result.append(Order(key, sp, min(-sv, abs(curr_position))))
+
+        for bp, bv in buy_orders.items():
+            if bp > fp:
+                result.append(Order(key, bp, max(max_allowed_ask_position, -bp)))
+            elif bp >= fp and curr_position > 0:
+                result.append(Order(key, bp, -min(bv, curr_position)))
+
+        return result
+
     def trade_ash(self, state: TradingState):
-        return self.mm_strategy(state, "ASH_COATED_OSMIUM")
+        return self.mm_strategy(state, "ASH_COATED_OSMIUM") 
+    # + self.mr_strategy(state, "ASH_COATED_OSMIUM")
+        # return self.mr_strategy(state, "ASH_COATED_OSMIUM")
 
     def trade_pepper(self, state: TradingState):
-        return self.mm_strategy(state, "INTARIAN_PEPPER_ROOT")
+        # return self.mm_strategy(state, "INTARIAN_PEPPER_ROOT")
+        return []
 
     def run(self, state: TradingState):
         self.preprocess_state(state)
