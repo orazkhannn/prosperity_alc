@@ -188,8 +188,6 @@ class Trader:
             return orders
 
         fair_value = self.get_pepper_fair_value(pepper_day, state.timestamp)
-        # or:
-        # fair_value = self.get_pepper_fair_value_continuous(pepper_day, state.timestamp)
 
         depth = state.order_depths[symbol]
         pos = state.position.get(symbol, 0)
@@ -199,79 +197,67 @@ class Trader:
         sell_orders = dict(sorted(depth.sell_orders.items(), key=lambda x: x[0]))
 
         max_buy = limit - pos
-        max_sell = limit + pos
 
-        # -------------------------
-        # 1. TAKING
-        # -------------------------
+        best_bid = max(buy_orders.keys()) if buy_orders else None
+        best_ask = min(sell_orders.keys()) if sell_orders else None
+
+        # ---------------------------------
+        # 1) IMMEDIATELY BUY CHEAP ASKS
+        # ---------------------------------
+        # Since trend is assumed to always hold, keep refilling inventory
+        # whenever someone is willing to sell below fair.
         for ask_price, ask_qty in sell_orders.items():
-            visible = -ask_qty
+            visible = -ask_qty  # raw sell qty is negative
+
             if max_buy <= 0:
                 break
 
-            if ask_price <= fair_value - 1:
+            if ask_price < fair_value:
                 qty = min(visible, max_buy)
                 if qty > 0:
                     orders.append(Order(symbol, ask_price, qty))
-                    max_buy -= qty
                     pos += qty
-
-            elif ask_price <= fair_value and pos < 0:
-                qty = min(visible, -pos, max_buy)
-                if qty > 0:
-                    orders.append(Order(symbol, ask_price, qty))
                     max_buy -= qty
-                    pos += qty
-
-        for bid_price, bid_qty in buy_orders.items():
-            if max_sell <= 0:
+            else:
+                # asks are sorted ascending, so once we hit >= fair we stop
                 break
 
-            if bid_price >= fair_value + 1:
-                qty = min(bid_qty, max_sell)
-                if qty > 0:
-                    orders.append(Order(symbol, bid_price, -qty))
-                    max_sell -= qty
-                    pos -= qty
+        # refresh after taking
+        best_bid = max(buy_orders.keys()) if buy_orders else None
+        best_ask = min(sell_orders.keys()) if sell_orders else None
 
-            elif bid_price >= fair_value and pos > 0:
-                qty = min(bid_qty, pos, max_sell)
-                if qty > 0:
-                    orders.append(Order(symbol, bid_price, -qty))
-                    max_sell -= qty
-                    pos -= qty
+        # ---------------------------------
+        # 2) PASSIVE RELOAD BID TO STAY LONG
+        # ---------------------------------
+        # If we are not yet full, leave a bid below fair so inventory comes back.
+        if max_buy > 0:
+            if best_bid is None and best_ask is None:
+                reload_bid = fair_value - 1
+            elif best_bid is None:
+                reload_bid = min(fair_value - 1, best_ask - 1)
+            elif best_ask is None:
+                reload_bid = min(fair_value - 1, best_bid + 1)
+            else:
+                reload_bid = min(fair_value - 1, best_bid + 1)
+                if reload_bid >= best_ask:
+                    reload_bid = best_ask - 1
 
-        # -------------------------
-        # 2. MAKING / PENNY-JUMPING
-        # -------------------------
-        if buy_orders and sell_orders:
-            bid_wall = min(buy_orders.keys())
-            ask_wall = max(sell_orders.keys())
+            if reload_bid < fair_value:
+                orders.append(Order(symbol, int(reload_bid), max_buy))
 
-            bid_price = int(bid_wall + 1)
-            ask_price = int(ask_wall - 1)
+        # ---------------------------------
+        # 3) SELL CURRENT INVENTORY RICH
+        # ---------------------------------
+        # Post the inventory at best_ask - 1, but ONLY if that is still above fair.
+        # Sell only what we currently own; do not go short.
+        if pos > 0 and best_ask is not None:
+            sell_price = best_ask - 1
 
-            for bp, bv in buy_orders.items():
-                overbid_price = bp + 1
-                if bv > 1 and overbid_price < fair_value:
-                    bid_price = max(bid_price, overbid_price)
-                    break
-                elif bp < fair_value:
-                    bid_price = max(bid_price, bp)
-                    break
+            # never cross into the bid by mistake
+            if best_bid is not None and sell_price <= best_bid:
+                sell_price = best_ask
 
-            for sp, sv in sell_orders.items():
-                undercut_price = sp - 1
-                if abs(sv) > 1 and undercut_price > fair_value:
-                    ask_price = min(ask_price, undercut_price)
-                    break
-                elif sp > fair_value:
-                    ask_price = min(ask_price, sp)
-                    break
-
-            if max_buy > 0:
-                orders.append(Order(symbol, bid_price, max_buy))
-            if max_sell > 0:
-                orders.append(Order(symbol, ask_price, -max_sell))
+            if sell_price > fair_value:
+                orders.append(Order(symbol, int(sell_price), -pos))
 
         return orders
