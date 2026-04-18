@@ -1,4 +1,4 @@
-from datamodel import Order, TradingState
+from datamodel import Order, TradingState # type: ignore
 
 
 class Trader:

@@ -1,4 +1,4 @@
-from datamodel import Order, OrderDepth, TradingState
+from datamodel import Order, OrderDepth, TradingState # type: ignore
 from typing import Dict, List
 
 

@@ -13,3 +13,4 @@ TUTORIAL_ROUND_*/
 traders/p4*
 .cargo-target
 .local-home
+.vscode
