@@ -1,7 +1,7 @@
 from datamodel import OrderDepth, UserId, TradingState, Order
 from typing import List
 import string
-import os
+import json
 
 class Trader:
 
@@ -10,7 +10,10 @@ class Trader:
             "ASH_COATED_OSMIUM": 80,
             "INTARIAN_PEPPER_ROOT": 80
         }
+        self.PEPPER_CORE_LONG = 40
         self.orderbook = {"INTARIAN_PEPPER_ROOT": OrderDepth(), "ASH_COATED_OSMIUM": OrderDepth()}
+        self.pepper_init_price = 0
+        self.found_pepper_init_price = False
 
     def logger_print(self, state: TradingState):
         print("OrderDepth after ffil vs before:")
@@ -87,68 +90,126 @@ class Trader:
             bid_price = bid_max + 1
             ask_price = ask_min - 1
 
-        elif key in ("INTARIAN_PEPPER_ROOT"):
-            bid_price = bid_wall + 1
-            ask_price = ask_wall - 1
-
-            for bp, bv in buy_orders.items():
-                overbidding_price = bp + 1
-                if bv > 1 and overbidding_price < wall_mid:
-                    bid_price = max(bid_price, overbidding_price)
-                    break
-                elif bp < wall_mid:
-                    bid_price = max(bid_price, bp)
-                    break
-
-            for sp, sv in sell_orders.items():
-                underbidding_price = sp - 1
-                if sv > 1 and underbidding_price > wall_mid:
-                    ask_price = min(ask_price, underbidding_price)
-                    break
-                elif sp > wall_mid:
-                    ask_price = min(ask_price, sp)
-                    break
-
-        result.append(Order(key, bid_price, max_allowed_bid_position))
-        result.append(Order(key, ask_price, max_allowed_ask_position))
-
         return result
+    
+    def trade_ash(self, state: TradingState):
+        buy_orders = self.orderbook["ASH_COATED_OSMIUM"].buy_orders
+        sell_orders = self.orderbook["ASH_COATED_OSMIUM"].sell_orders
 
-    def mr_strategy(self, state: TradingState, key):
-        buy_orders = self.orderbook[key].buy_orders
-        sell_orders = self.orderbook[key].sell_orders
+        if not (buy_orders and sell_orders):
+            return []
 
-        curr_position = state.position.get(key, 0)
+        curr_position = state.position.get("ASH_COATED_OSMIUM", 0)
 
-        fp = 1e4
+        bid_max = max([x for x in buy_orders])
+        ask_min = min([x for x in sell_orders])
+        price_mid = (bid_max + ask_min) / 2
 
-        max_allowed_bid_position = self.LIMITS[key] - curr_position
-        max_allowed_ask_position = -self.LIMITS[key] - curr_position
+        bid_wall = min([x for x in buy_orders])
+        ask_wall = max([x for x in sell_orders])
+        wall_mid = (bid_wall + ask_wall) / 2
+
+        max_allowed_bid_position = self.LIMITS["ASH_COATED_OSMIUM"] - curr_position
+        max_allowed_ask_position = -self.LIMITS["ASH_COATED_OSMIUM"] - curr_position
 
         result = []
 
-        for sp, sv in sell_orders.items():
-            if sp < fp:
-                result.append(Order(key, sp, min(max_allowed_bid_position, -sv)))
-            elif sp <= fp and curr_position < 0:
-                result.append(Order(key, sp, min(-sv, abs(curr_position))))
+        bid_prce = 0
+        ask_price = 0
 
-        for bp, bv in buy_orders.items():
-            if bp > fp:
-                result.append(Order(key, bp, max(max_allowed_ask_position, -bp)))
-            elif bp >= fp and curr_position > 0:
-                result.append(Order(key, bp, -min(bv, curr_position)))
+        bid_price = bid_max + 1
+        ask_price = ask_min - 1
+
+        result.append(Order("ASH_COATED_OSMIUM", bid_price, min(max_allowed_bid_position, 100)))
+        result.append(Order("ASH_COATED_OSMIUM", ask_price, max(max_allowed_ask_position, -100)))
 
         return result
+    
 
-    def trade_ash(self, state: TradingState):
-        return self.mm_strategy(state, "ASH_COATED_OSMIUM") 
-    # + self.mr_strategy(state, "ASH_COATED_OSMIUM")
-        # return self.mr_strategy(state, "ASH_COATED_OSMIUM")
+    def calculate_fair(self, timestamp):
+        return int(self.pepper_init_price + 0.001*timestamp)
 
     def trade_pepper(self, state: TradingState):
-        # return self.mm_strategy(state, "INTARIAN_PEPPER_ROOT")
-        return []
+        key = "INTARIAN_PEPPER_ROOT"
+        buy_orders = self.orderbook[key].buy_orders
+        sell_orders = self.orderbook[key].sell_orders
+        timestamp = state.timestamp
+
+        if not (buy_orders and sell_orders):
+            return []
+
+        curr_position = state.position.get(key, 0)
+        max_position = self.LIMITS[key]
+        protected_long = min(self.PEPPER_CORE_LONG, max_position)
+        result = []
+
+        best_bid = max([x for x in buy_orders])
+        best_ask = min([x for x in sell_orders])
+        bid_wall = min([x for x in buy_orders])
+        ask_wall = max([x for x in sell_orders])
+        wall_mid = (bid_wall + ask_wall) / 2
+        if buy_orders and sell_orders:
+            if not self.found_pepper_init_price:
+                self.pepper_init_price = wall_mid
+                self.found_pepper_init_price = True
+        elif not self.found_pepper_init_price:
+            return []
+
+        fv = self.calculate_fair(timestamp)
+
+        core_shortfall = max(0, protected_long - curr_position)
+        buy_capacity = max_position - curr_position
+
+        # Build the protected +40 inventory quickly by lifting visible asks.
+        if core_shortfall > 0:
+            for ask_price in sorted(sell_orders):
+                ask_volume = -sell_orders[ask_price]
+                if ask_volume <= 0:
+                    continue
+
+                take_size = min(core_shortfall, buy_capacity, ask_volume)
+                if take_size <= 0:
+                    break
+
+                result.append(Order(key, ask_price, take_size))
+                core_shortfall -= take_size
+                buy_capacity -= take_size
+
+                if core_shortfall == 0 or buy_capacity == 0:
+                    break
+
+        position_after_core = curr_position + (max_position - curr_position - buy_capacity)
+        mm_bid_capacity = max(0, max_position - position_after_core)
+        mm_ask_capacity = max(0, position_after_core - protected_long)
+
+        bid_price = bid_wall + 1
+        ask_price = ask_wall - 1
+
+        for bp, bv in buy_orders.items():
+            overbidding_price = bp + 1
+            if bv > 1 and overbidding_price < fv:
+                bid_price = max(bid_price, overbidding_price)
+                break
+            elif bp < fv:
+                bid_price = max(bid_price, bp)
+                break
+
+        for sp, sv in sell_orders.items():
+            underbidding_price = sp - 1
+            if sv > 1 and underbidding_price > fv:
+                ask_price = min(ask_price, underbidding_price)
+                break
+            elif sp > fv:
+                ask_price = min(ask_price, sp)
+                break
+
+        if mm_bid_capacity > 0:
+            result.append(Order(key, bid_price, min(mm_bid_capacity, 100)))
+
+        if mm_ask_capacity > 0:
+            result.append(Order(key, ask_price, -min(mm_ask_capacity, 100)))
+
+        return result
 
     def run(self, state: TradingState):
         self.preprocess_state(state)
