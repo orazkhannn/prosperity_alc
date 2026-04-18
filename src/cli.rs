@@ -927,12 +927,27 @@ fn latest_modified(paths: Vec<PathBuf>) -> Result<Option<PathBuf>> {
 }
 
 fn short_dataset_label(path: &Path) -> String {
+    if let Some(day_label) = day_dataset_label(path) {
+        return day_label;
+    }
+
     match day_key_from_path(path).as_deref() {
-        Some("day_-1") => "D-1".to_string(),
-        Some("day_-2") => "D-2".to_string(),
         _ if is_submission_like_path(path) => "SUB".to_string(),
         _ => shorten_identifier(&dataset_stem_label(path).replace('_', "-"), 20),
     }
+}
+
+fn day_dataset_label(path: &Path) -> Option<String> {
+    let day_key = day_key_from_path(path)?;
+    let raw_day = day_key.strip_prefix("day_")?;
+    let day = raw_day.parse::<i64>().ok()?;
+    Some(if day == 0 {
+        "D=0".to_string()
+    } else if day > 0 {
+        format!("D+{day}")
+    } else {
+        format!("D{}", day)
+    })
 }
 
 fn shorten_identifier(value: &str, max_len: usize) -> String {
@@ -1228,6 +1243,15 @@ fn print_summary(
             row.run_dir.as_deref().unwrap_or("-")
         );
     }
+    if rows.len() > 1 {
+        let total_ticks: usize = rows.iter().map(|row| row.tick_count).sum();
+        let total_own_trades: usize = rows.iter().map(|row| row.own_trade_count).sum();
+        let total_pnl: f64 = rows.iter().map(|row| row.final_pnl_total).sum();
+        println!(
+            "{:<12} {:>6} {:>8} {:>11} {:>12.2}  {}",
+            "TOTAL", "-", total_ticks, total_own_trades, total_pnl, "-"
+        );
+    }
     print_product_table(rows, products);
 }
 
@@ -1517,15 +1541,26 @@ fn build_product_matrix(rows: &[SummaryRow], mode: ProductDisplayMode) -> Produc
         };
     }
 
-    let columns: Vec<String> = rows.iter().map(product_column_label).collect();
+    let show_total_column = rows.len() > 1;
+    let mut columns: Vec<String> = rows.iter().map(product_column_label).collect();
+    if show_total_column {
+        columns.push("TOTAL".to_string());
+    }
     let mut product_map: IndexMap<String, Vec<f64>> = IndexMap::new();
     for (col_idx, row) in rows.iter().enumerate() {
         for (product, pnl) in &row.final_pnl_by_product {
             let key = short_product_label(product).to_string();
             let entry = product_map
                 .entry(key)
-                .or_insert_with(|| vec![0.0; rows.len()]);
+                .or_insert_with(|| vec![0.0; columns.len()]);
             entry[col_idx] = *pnl;
+        }
+    }
+
+    if show_total_column {
+        let total_col_idx = columns.len() - 1;
+        for values in product_map.values_mut() {
+            values[total_col_idx] = values[..rows.len()].iter().sum();
         }
     }
 
@@ -1726,6 +1761,57 @@ mod tests {
     }
 
     #[test]
+    fn product_split_adds_total_column_for_multi_run_output() {
+        let rows = vec![
+            SummaryRow {
+                dataset: "D-2".to_string(),
+                day: Some(-2),
+                tick_count: 0,
+                own_trade_count: 0,
+                final_pnl_total: 15.0,
+                final_pnl_by_product: {
+                    let mut values = IndexMap::new();
+                    values.insert("EMERALDS".to_string(), 10.0);
+                    values.insert("TOMATOES".to_string(), 5.0);
+                    values
+                },
+                run_dir: None,
+            },
+            SummaryRow {
+                dataset: "D=0".to_string(),
+                day: Some(0),
+                tick_count: 0,
+                own_trade_count: 0,
+                final_pnl_total: 6.0,
+                final_pnl_by_product: {
+                    let mut values = IndexMap::new();
+                    values.insert("EMERALDS".to_string(), 3.5);
+                    values.insert("TOMATOES".to_string(), 2.5);
+                    values
+                },
+                run_dir: None,
+            },
+        ];
+
+        assert_eq!(
+            build_product_matrix(&rows, ProductDisplayMode::Summary),
+            ProductMatrix {
+                columns: vec!["D-2".to_string(), "D=0".to_string(), "TOTAL".to_string()],
+                rows: vec![
+                    ProductMatrixRow {
+                        product: "EMR".to_string(),
+                        values: vec![10.0, 3.5, 13.5],
+                    },
+                    ProductMatrixRow {
+                        product: "TOM".to_string(),
+                        values: vec![5.0, 2.5, 7.5],
+                    },
+                ],
+            }
+        );
+    }
+
+    #[test]
     fn tutorial_dataset_returns_single_day() {
         let dataset =
             load_dataset(&project_root().join("datasets/tutorial/prices_round_0_day_-1.csv"))
@@ -1754,7 +1840,7 @@ mod tests {
     #[test]
     fn dataset_alias_defaults_to_latest_round() {
         let dataset = resolve_dataset_input(None).expect("dataset should resolve");
-        assert_eq!(dataset.label, "tutorial");
+        assert_eq!(dataset.label, "round2");
         assert_eq!(dataset.roots.len(), 1);
         assert!(dataset.auto_selected);
     }
@@ -1799,6 +1885,18 @@ mod tests {
     fn short_label_uses_known_aliases() {
         let label = short_dataset_label(std::path::Path::new("submission.json"));
         assert_eq!(label, "SUB");
+    }
+
+    #[test]
+    fn short_label_formats_day_zero_consistently() {
+        let label = short_dataset_label(std::path::Path::new("prices_round_1_day_0.csv"));
+        assert_eq!(label, "D=0");
+    }
+
+    #[test]
+    fn short_label_formats_positive_days_with_plus() {
+        let label = short_dataset_label(std::path::Path::new("prices_round_1_day_2.csv"));
+        assert_eq!(label, "D+2");
     }
 
     #[test]
