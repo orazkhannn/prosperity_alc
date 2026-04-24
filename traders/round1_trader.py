@@ -3,6 +3,9 @@ from typing import List, Dict
 import json
 
 class Trader:
+
+    def bid(self):
+        return 15
     POSITION_LIMITS = {
         "ASH_COATED_OSMIUM": 80,
         "INTARIAN_PEPPER_ROOT": 80,
