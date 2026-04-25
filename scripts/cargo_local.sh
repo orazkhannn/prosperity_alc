@@ -1,12 +1,35 @@
 #!/bin/sh
 set -eu
 
+script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+repo_root="$(CDPATH= cd -- "${script_dir}/.." && pwd)"
+
 os_name="$(uname -s)"
-clean_path="${HOME}/.cargo/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+default_cargo_home="${repo_root}/.local-home/.cargo"
+default_rustup_home="${repo_root}/.local-home/.rustup"
+default_target_dir="${repo_root}/.cargo-target"
+
+if [ -z "${CARGO_HOME-}" ] && [ -d "${default_cargo_home}" ]; then
+    CARGO_HOME="${default_cargo_home}"
+fi
+
+if [ -z "${RUSTUP_HOME-}" ] && [ -d "${default_rustup_home}" ]; then
+    RUSTUP_HOME="${default_rustup_home}"
+fi
+
+cargo_bin_root="${CARGO_HOME:-${HOME}/.cargo}"
+cargo_bin="${cargo_bin_root}/bin/cargo"
+clean_path="${cargo_bin_root}/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 effective_target_dir() {
     if [ -n "${CARGO_TARGET_DIR-}" ]; then
         printf '%s\n' "${CARGO_TARGET_DIR}"
+        return
+    fi
+
+    if [ -d "${repo_root}" ]; then
+        printf '%s\n' "${default_target_dir}"
         return
     fi
 
@@ -27,8 +50,13 @@ case "${1-}" in
         ;;
 esac
 
+if [ ! -x "${cargo_bin}" ]; then
+    echo "cargo not found at ${cargo_bin}" >&2
+    exit 127
+fi
+
 if [ "${os_name}" != "Darwin" ]; then
-    exec cargo "$@"
+    exec "${cargo_bin}" "$@"
 fi
 
 target_dir="$(effective_target_dir)"
@@ -58,4 +86,4 @@ exec env -i \
     ${SSL_CERT_FILE+"SSL_CERT_FILE=${SSL_CERT_FILE}"} \
     ${SSL_CERT_DIR+"SSL_CERT_DIR=${SSL_CERT_DIR}"} \
     PYO3_PYTHON="${pyo3_python}" \
-    cargo "$@"
+    "${cargo_bin}" "$@"

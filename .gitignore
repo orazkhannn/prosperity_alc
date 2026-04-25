@@ -11,3 +11,7 @@ dist/
 TUTORIAL_ROUND_*/
 [0-9]*/
 traders/p4*
+.cargo-target
+.local-home
+.vscode
+scripts/cargo_local.sh
