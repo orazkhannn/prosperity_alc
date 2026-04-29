@@ -1,3 +1,11 @@
+LOCAL_HOME := $(CURDIR)/.local-home
+
+export HOME := $(LOCAL_HOME)
+export CARGO_HOME := $(LOCAL_HOME)/.cargo
+export RUSTUP_HOME := $(LOCAL_HOME)/.rustup
+export CARGO_TARGET_DIR := $(CURDIR)/.cargo-target
+export PYO3_PYTHON := $(CURDIR)/.venv/bin/python
+
 PYTHON ?= python3
 PIP ?= $(PYTHON) -m pip
 UV ?= uv
@@ -9,7 +17,8 @@ PERSIST ?= 0
 FLAT ?= 0
 CARRY ?= 0
 ROUND ?= tutorial
-CARGO_CMD ?= ./scripts/cargo_local.sh
+# CARGO_CMD ?= ./scripts/cargo_local.sh
+CARGO_CMD ?= ./.local-home/.cargo/bin/cargo
 DOCTOR_CMD ?= ./scripts/doctor_local.sh
 
 .PHONY: help doctor build build-release test install install-pip install-uv install-uv-editable backtest tutorial submission round1-submission round2-submission round3-submission round4-submission round5-submission round6-submission round7-submission round8-submission round1 round2 round3 round4 round5 round6 round7 round8 run run-tutorial docker-build docker-smoke clean
