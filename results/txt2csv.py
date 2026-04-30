@@ -2,7 +2,7 @@ import re
 import pandas as pd
 from pathlib import Path
 
-path = Path("results/rw_a1_terminal.txt")
+path = Path("results/rwc.txt")
 text = path.read_text()
 
 rows = []
@@ -27,27 +27,34 @@ for match in pattern.finditer(text):
         "TOTAL": float(total),
     })
 
-pnl_by_product = pd.DataFrame(rows)
+pnl = pd.DataFrame(rows)
+pnl = pnl.sort_values("TOTAL", ascending=False)
 
-# Sort products by total PnL
-pnl_by_product = pnl_by_product.sort_values("TOTAL", ascending=False)
-
-# Add total row at the bottom
-total_row = pd.DataFrame([{
-    "product": "TOTAL",
-    "D+2": pnl_by_product["D+2"].sum(),
-    "D+3": pnl_by_product["D+3"].sum(),
-    "D+4": pnl_by_product["D+4"].sum(),
-    "TOTAL": pnl_by_product["TOTAL"].sum(),
-}])
-
-pnl_by_product_with_total = pd.concat(
-    [pnl_by_product, total_row],
-    ignore_index=True
+pnl["positive_days"] = (
+    (pnl["D+2"] > 0).astype(int)
+    + (pnl["D+3"] > 0).astype(int)
+    + (pnl["D+4"] > 0).astype(int)
 )
 
-pnl_by_product_with_total.to_csv(
-    "results/rwa.csv",
-    index=False,
-    sep="\t"
-)
+pnl["worst_day"] = pnl[["D+2", "D+3", "D+4"]].min(axis=1)
+pnl["best_day"] = pnl[["D+2", "D+3", "D+4"]].max(axis=1)
+pnl["avg_day"] = pnl[["D+2", "D+3", "D+4"]].mean(axis=1)
+pnl["total"] = pnl[["D+2", "D+3", "D+4"]].sum(axis=1)
+
+pnl["worst_to_avg"] = pnl["worst_day"] / pnl["avg_day"].abs()
+filtered = pnl[
+    (pnl["positive_days"] >= 2)
+    & (pnl["total"] > 0)
+    & (pnl["worst_day"] > -0.5 * pnl["avg_day"].abs())
+]
+positive_all_days = pnl[
+    (pnl["D+2"] > 0)
+    & (pnl["D+3"] > 0)
+    & (pnl["D+4"] > 0)
+].sort_values("TOTAL", ascending=False)
+
+
+
+# print(positive_all_days.to_csv(index=False, sep="\t"))
+filtered.to_clipboard(index=False, sep="\t")
+print("Copied to clipboard")

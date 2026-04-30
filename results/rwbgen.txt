@@ -1,0 +1,3 @@
+./.local-home/.cargo/bin/cargo run -- --trader traders/rw.py  --products full    --dataset round5
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.16s
+     Running `.cargo-target/debug/rust_backtester --trader traders/rw.py --products full --dataset round5`
