@@ -1,0 +1,9 @@
+./.local-home/.cargo/bin/cargo run -- --trader traders/rwa_grid.py  --products full    --dataset round5
+
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running `.cargo-target/debug/rust_backtester --trader traders/rwa_grid.py --products full --dataset round5`
+Error: failed to resolve trader traders/rwa_grid.py
+
+Caused by:
+    No such file or directory (os error 2)
+make: *** [round5] Error 1

@@ -1,4 +1,3 @@
-import os
 from datamodel import Order, TradingState  # type: ignore
 from typing import Dict, List
 
@@ -6,8 +5,8 @@ from typing import Dict, List
 class Trader:
     POSITION_LIMIT = 10
 
-    BASE_SIZE = int(os.environ.get("BASE_SIZE", "2"))
-    IMPROVEMENT = int(os.environ.get("IMPROVEMENT", "1"))
+    BASE_SIZE = 2
+    IMPROVEMENT = 1
 
     AVG_SPREAD = {
         "GALAXY_SOUNDS_BLACK_HOLES": 14.513,
@@ -63,7 +62,7 @@ class Trader:
     }
 
     # inventory-aware parameters
-    INVENTORY_PRICE_SKEW = 0.1
+    INVENTORY_PRICE_SKEW = 0.35
     SOFT_LIMIT = 5
     FLATTEN_LIMIT = 8
     MAX_EXTRA_SIZE = 3
@@ -106,11 +105,20 @@ class Trader:
         "TRANSLATOR_VOID_BLUE": "B_GEN",
     }
 
+    SKIP_PRODUCTS = {
+        "PEBBLES_M",
+        "ROBOT_DISHES",
+        "SLEEP_POD_LAMB_WOOL",
+        "UV_VISOR_MAGENTA",
+    }
     def run(self, state):
         orders = {}
 
         for product in state.order_depths.keys():
-            product_orders = self.trade_rwbd(state, product)
+            if product in self.SKIP_PRODUCTS:
+                continue
+            
+            product_orders = self.trade_product(state, product)
 
             if product_orders:
                 orders[product] = product_orders
@@ -145,148 +153,6 @@ class Trader:
 
         # Safety fallback
         return self.trade_rwd(state, product)
-
-    def trade_rwbd(self, state, product):
-        """
-        RWBD: spread-aware + inventory-aware market making.
-
-        Spread logic:
-            wider spread -> quote more aggressively and larger size
-            tighter spread -> quote less aggressively and smaller size
-
-        Position logic:
-            long  -> lower quotes, buy less, sell more
-            short -> raise quotes, buy more, sell less
-            near limits -> prioritize flattening
-        """
-
-        orders = []
-
-        if product not in state.order_depths:
-            return orders
-
-        depth = state.order_depths[product]
-
-        if not depth.buy_orders or not depth.sell_orders:
-            return orders
-
-        position = state.position.get(product, 0)
-
-        best_bid = max(depth.buy_orders.keys())
-        best_ask = min(depth.sell_orders.keys())
-
-        if best_bid >= best_ask:
-            return orders
-
-        spread = best_ask - best_bid
-
-        # ----------------------------
-        # 1. Spread-based base improvement and size
-        # ----------------------------
-
-        if spread >= 16:
-            base_improvement = 3
-            base_size = self.BASE_SIZE + 3
-
-        elif spread >= 12:
-            base_improvement = 2
-            base_size = self.BASE_SIZE + 2
-
-        elif spread >= 8:
-            base_improvement = 1
-            base_size = self.BASE_SIZE + 1
-
-        elif spread >= 4:
-            base_improvement = 1
-            base_size = self.BASE_SIZE
-
-        else:
-            return orders
-
-        # Do not improve so much that orders cross.
-        max_improvement = (spread - 1) // 2
-        base_improvement = min(base_improvement, max_improvement)
-
-        # ----------------------------
-        # 2. Position-based price skew
-        # ----------------------------
-        # Long position:
-        #   lower bid  -> less likely to buy more
-        #   lower ask  -> more likely to sell
-        #
-        # Short position:
-        #   raise bid  -> more likely to buy back
-        #   raise ask  -> less likely to sell more
-
-        price_skew = int(round(self.INVENTORY_PRICE_SKEW * position))
-
-        buy_price = best_bid + base_improvement - price_skew
-        sell_price = best_ask - base_improvement - price_skew
-
-        # Do not cross the opposite side.
-        buy_price = min(buy_price, best_ask - 1)
-        sell_price = max(sell_price, best_bid + 1)
-
-        if buy_price >= sell_price:
-            return orders
-
-        # ----------------------------
-        # 3. Position-based size skew
-        # ----------------------------
-
-        if position >= self.FLATTEN_LIMIT:
-            # Very long: stop buying, sell aggressively
-            buy_size = 0
-            sell_size = base_size + self.MAX_EXTRA_SIZE
-
-        elif position > self.SOFT_LIMIT:
-            # Moderately long
-            buy_size = max(0, base_size - 2)
-            sell_size = base_size + 2
-
-        elif position > 0:
-            # Slightly long
-            buy_size = max(1, base_size - 1)
-            sell_size = base_size + 1
-
-        elif position <= -self.FLATTEN_LIMIT:
-            # Very short: buy aggressively, stop selling
-            buy_size = base_size + self.MAX_EXTRA_SIZE
-            sell_size = 0
-
-        elif position < -self.SOFT_LIMIT:
-            # Moderately short
-            buy_size = base_size + 2
-            sell_size = max(0, base_size - 2)
-
-        elif position < 0:
-            # Slightly short
-            buy_size = base_size + 1
-            sell_size = max(1, base_size - 1)
-
-        else:
-            # Flat
-            buy_size = base_size
-            sell_size = base_size
-
-        # ----------------------------
-        # 4. Hard position-limit caps
-        # ----------------------------
-
-        max_buy = self.POSITION_LIMIT - position
-        max_sell = self.POSITION_LIMIT + position
-
-        buy_size = min(buy_size, max_buy)
-        sell_size = min(sell_size, max_sell)
-
-        if buy_size > 0:
-            orders.append(Order(product, buy_price, buy_size))
-
-        if sell_size > 0:
-            orders.append(Order(product, sell_price, -sell_size))
-
-        return orders
-
 
     # baseline
     def trade_rwa(self, state, product):

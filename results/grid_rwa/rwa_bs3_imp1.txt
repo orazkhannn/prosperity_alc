@@ -1,0 +1,65 @@
+./.local-home/.cargo/bin/cargo run -- --trader traders/rw.py  --products full    --dataset round5
+trader: rw.py
+dataset: round5
+mode: fast
+artifacts: log-only
+SET             DAY    TICKS  OWN_TRADES    FINAL_PNL  RUN_DIR
+D+2               2    10000        9490    118791.00  runs/backtest-1777541615563-round5-day+2
+D+3               3    10000       11614     82702.00  runs/backtest-1777541615563-round5-day+3
+D+4               4    10000       10235    163213.50  runs/backtest-1777541615563-round5-day+4
+TOTAL             -    30000       31339    364706.50  -
+
+PRODUCT                              D+2        D+3        D+4      TOTAL
+GALAXY_SOUNDS_BLACK_HOLES       -5223.00    4551.00   16091.50   15419.50
+GALAXY_SOUNDS_DARK_MATTER        2732.00    2326.00    3921.50    8979.50
+GALAXY_SOUNDS_PLANETARY_RINGS   22611.00     779.00   -4786.50   18603.50
+GALAXY_SOUNDS_SOLAR_FLAMES      -7581.00    2707.00   -1160.00   -6034.00
+GALAXY_SOUNDS_SOLAR_WINDS       -9713.00    8045.00    8791.50    7123.50
+MICROCHIP_CIRCLE                  222.00   -1208.00   11367.00   10381.00
+MICROCHIP_OVAL                   4638.00    5001.00    1036.00   10675.00
+MICROCHIP_RECTANGLE             12736.50    5495.00  -13556.00    4675.50
+MICROCHIP_SQUARE                 1474.50    -965.00    8195.00    8704.50
+MICROCHIP_TRIANGLE               4961.00    -938.00    8191.00   12214.00
+OXYGEN_SHAKE_CHOCOLATE           9445.00    8236.00    5283.00   22964.00
+OXYGEN_SHAKE_EVENING_BREATH       644.00    7582.00   11945.00   20171.00
+OXYGEN_SHAKE_GARLIC             -1378.00    6729.00   10636.00   15987.00
+OXYGEN_SHAKE_MINT               -1524.00   -1332.00    2820.00     -36.00
+OXYGEN_SHAKE_MORNING_BREATH      3247.00    2622.00    7712.50   13581.50
+PANEL_1X2                      -10343.00   -9326.00    1515.00  -18154.00
+PANEL_1X4                       15001.00    3620.00    8276.50   26897.50
+PANEL_2X2                        7217.00     331.00     805.00    8353.00
+PANEL_2X4                        1590.00   11351.00    3397.50   16338.50
+PANEL_4X4                       -6476.00   -5043.00     847.50  -10671.50
+PEBBLES_L                      -11272.00    9027.00   -9255.00  -11500.00
+PEBBLES_M                        4559.00   -7925.00  -11390.00  -14756.00
+PEBBLES_S                       17789.00    4963.00   15920.00   38672.00
+PEBBLES_XL                        -28.00   14374.00   18891.00   33237.00
+PEBBLES_XS                       2695.00   -4162.00       0.00   -1467.00
+ROBOT_DISHES                     8143.00    8041.00   -3690.00   12494.00
+ROBOT_IRONING                   12118.00     418.00    1856.00   14392.00
+ROBOT_LAUNDRY                    -677.00    2760.00    6987.50    9070.50
+ROBOT_MOPPING                  -11267.00   -9056.00    6851.50  -13471.50
+ROBOT_VACUUMING                 -1912.00   -3196.00    2283.00   -2825.00
+SLEEP_POD_COTTON                 -350.00   -4411.00    5992.00    1231.00
+SLEEP_POD_LAMB_WOOL            -13215.00  -10863.00   -5802.00  -29880.00
+SLEEP_POD_NYLON                  1141.00    7962.00    5427.50   14530.50
+SLEEP_POD_POLYESTER               717.00    6505.00    1401.50    8623.50
+SLEEP_POD_SUEDE                 13834.00    3597.00   -4196.50   13234.50
+SNACKPACK_CHOCOLATE              4739.00    8841.00    4445.00   18025.00
+SNACKPACK_PISTACHIO              3081.00    5485.00     648.00    9214.00
+SNACKPACK_RASPBERRY              4668.00    3775.00    7216.50   15659.50
+SNACKPACK_STRAWBERRY             1559.00    3265.00    1140.50    5964.50
+SNACKPACK_VANILLA                 212.00   -1109.00    2496.00    1599.00
+TRANSLATOR_ASTRO_BLACK            802.00   -1255.00    5974.50    5521.50
+TRANSLATOR_ECLIPSE_CHARCOAL     12708.00   -6889.00    6943.50   12762.50
+TRANSLATOR_GRAPHITE_MIST        -4609.00    -565.00     755.50   -4418.50
+TRANSLATOR_SPACE_GRAY            7735.00   -3649.00  -15274.00  -11188.00
+TRANSLATOR_VOID_BLUE             6316.00     557.00   10673.00   17546.00
+UV_VISOR_AMBER                   6382.00   -1401.00    9603.00   14584.00
+UV_VISOR_MAGENTA                 4599.00   -9784.00   -2129.50   -7314.50
+UV_VISOR_ORANGE                  3946.00    2836.00    8008.50   14790.50
+UV_VISOR_RED                      188.00    9361.00      61.50    9610.50
+UV_VISOR_YELLOW                   -91.00    4637.00      46.00    4592.00
+
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.15s
+     Running `.cargo-target/debug/rust_backtester --trader traders/rw.py --products full --dataset round5`

@@ -81,18 +81,20 @@ class Trader:
             weighted_ask_volume += weights[i] * abs(volume)
 
         weighted_total_volume = weighted_bid_volume + weighted_ask_volume
-
+        print(f"weighted_bid_volume: {weighted_bid_volume}")
+        print(f"weighted_ask_volume: {weighted_ask_volume}")
         if weighted_total_volume == 0:
             return orders
 
         wi = (weighted_bid_volume - weighted_ask_volume) / weighted_total_volume
+        print(f"wi: {wi}")
 
         # ----------------------------
         # Signal-based quote skew
         # ----------------------------
 
-        MILD = 0.10
-        STRONG = 0.25
+        MILD = 0.05
+        STRONG = 0.10
 
         # Neutral baseline
         buy_improve = 1
@@ -140,8 +142,8 @@ class Trader:
 
         elif position <= -self.FLATTEN_LIMIT:
             # Too short: stop selling, prioritize buying
-            buy_size = max(buy_size, self.BASE_SIZE + 2)
             sell_size = 0
+            buy_size = max(buy_size, self.BASE_SIZE + 2)
             buy_improve = max(buy_improve, 2)
 
         # ----------------------------

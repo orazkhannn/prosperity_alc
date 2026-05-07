@@ -2,7 +2,7 @@ import re
 import pandas as pd
 from pathlib import Path
 
-path = Path("results/rwc.txt")
+path = Path("results/rwbd.txt")
 text = path.read_text()
 
 rows = []
